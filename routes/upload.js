@@ -12,18 +12,20 @@ const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
 
 router.post('/', authenticate, upload.single('file'), async (req, res) => {
-    const userId = req.user.id; // assuming JWT middleware sets req.user
+    const userId = req.user.id;
     const originalPath = req.file.path;
     const encryptedPath = path.join('uploads', `enc_${req.file.filename}`);
 
+    const { size, mimetype } = req.file; // ✅ new: extract size & mime type
+
     try {
         const { iv } = await encryptFile(originalPath, encryptedPath);
-        fs.unlinkSync(originalPath); // remove original unencrypted file
+        fs.unlinkSync(originalPath); // ✅ delete unencrypted original
 
-        // Save file info in DB
+        // ✅ Save full metadata into DB
         await db.execute(
-            'INSERT INTO files (user_id, filename, iv) VALUES (?, ?, ?)',
-            [userId, encryptedPath, iv]
+            'INSERT INTO files (user_id, filename, size, mime_type, iv) VALUES (?, ?, ?, ?, ?)',
+            [userId, encryptedPath, size, mimetype, iv]
         );
 
         res.json({ message: 'File uploaded and encrypted successfully.' });
@@ -32,5 +34,6 @@ router.post('/', authenticate, upload.single('file'), async (req, res) => {
         res.status(500).json({ error: 'Encryption failed' });
     }
 });
+
 
 module.exports = router;
